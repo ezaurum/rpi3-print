@@ -1,0 +1,7 @@
+result
+result-*
+*.img
+*.img.zst
+.claude/logs/
+.claude/.pending-review/
+.claude/settings.local.json
