@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, pkgsX86, ... }:
 
 {
   fonts = {
@@ -17,6 +17,9 @@
 
   boot.loader.grub.enable = false;
   boot.loader.generic-extlinux-compatible.enable = true;
+
+  # 삼성 ULD의 rastertospl(x86_64 바이너리)을 qemu로 실행하기 위한 에뮬레이션
+  boot.binfmt.emulatedSystems = [ "x86_64-linux" ];
 
   networking.hostName = "rpi3-print";
   networking.networkmanager.enable = true;
@@ -49,12 +52,14 @@
   # 3. 프린터 서버 설정 (추가됨)
   services.printing = {
     enable = true;
-    drivers = with pkgs; [ 
-      foomatic-db 
-      cups-filters 
-      splix
-      gutenprint
-      ];
+    drivers = [
+      pkgs.foomatic-db
+      pkgs.cups-filters
+      pkgs.gutenprint
+      # M2020의 실제 드라이버. x86_64 전용 rastertospl은 binfmt(qemu)로 돈다.
+      # splix(ml2160.ppd)는 M2020 펌웨어를 크래시시키므로 제외 — README 참고.
+      pkgsX86.samsung-unified-linux-driver_1_00_36
+    ];
     listenAddresses = [ "*:631" ];
     defaultShared = true;
     browsing = true;
@@ -97,12 +102,12 @@
   serviceConfig = {
     Type = "oneshot";
     # lpadmin은 기존 큐가 있어도 설정을 갱신하므로 매번 실행해 변경 사항을 반영한다.
-    # M2020은 splix의 ML-2160 PPD(QPDL v3)로 구동된다 — 공식 ULD는 x86 바이너리 전용이라 aarch64에서 사용 불가.
+    # 드라이버는 ULD의 M2020 전용 PPD(rastertospl/SPL). splix QPDL은 펌웨어 크래시 유발.
     # retry-job: 프린터 전원이 꺼져 있어도 큐가 멈추지 않고 재시도한다.
     ExecStart = pkgs.writeShellScript "register-printer" ''
       ${pkgs.cups}/bin/lpadmin -p "Samsung_M2020" \
         -v "usb://Samsung/M2020%20Series?serial=0B2DB8GM5B002WA" \
-        -m "samsung/ml2160.ppd" -L "Home-Office" \
+        -m "Samsung_M2020_Series.ppd.gz" -L "Home-Office" \
         -o printer-error-policy=retry-job -E
     '';
   };
